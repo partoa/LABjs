@@ -109,11 +109,10 @@
         first_pass = bTRUE,
         scripts = {},
         exec = [],
-        end_of_chain_check_interval = nNULL
-        ;
-		
+        end_of_chain_check_interval = nNULL;
+
         _use_preload = _use_cache_preload || _use_xhr_preload || _use_script_order; // if all flags are turned off, preload is moot so disable it
-		
+
         function isScriptLoaded(elem,scriptentry) {
             if ((elem[sREADYSTATE] && elem[sREADYSTATE]!==sCOMPLETE && elem[sREADYSTATE]!=="loaded") || scriptentry[sDONE]) {
                 return bFALSE;
@@ -248,7 +247,6 @@
 
                 if(!tag_exists)  return;
             }
-            //console.log(src);
             if (scripts[src_uri] == nNULL) scripts[src_uri] = {};
             scriptentry = scripts[src_uri];
             if (scriptentry[sWHICH] == nNULL) scriptentry[sWHICH] = _which;
@@ -268,11 +266,10 @@
         }
         function onlyQueue(execBody) {
             exec.push(execBody);
-            //console.log(exec);
         }
         function queueAndExecute(execBody) { // helper for publicAPI functions below
             if (queueExec && !_use_script_order) onlyQueue(execBody);
-            if (!queueExec || _use_preload/* || already_loaded*/) execBody(); // if engine is either not queueing, or is queuing in preload mode, go ahead and execute
+            if (!queueExec || _use_preload || already_loaded) execBody(); // if engine is either not queueing, or is queuing in preload mode, go ahead and execute
         }
         function serializeArgs(args) {
             var sargs = [], idx;
@@ -294,6 +291,7 @@
                                 loadScript((typeof args[0] === sSTRING) ? {
                                     src:args[0]
                                 } : args[0]);
+                                return true;
                             });
                         }
                         else use_engine = use_engine.script(args[idx]);
@@ -301,14 +299,13 @@
                     }
                 }
                 else {
-                    //console.log(args);
                     queueAndExecute(function(){
-                        //console.log([args, 'fun']);
                         for (idx=-1; ++idx<args.length;) {
                             loadScript((typeof args[idx] === sSTRING) ? {
                                 src:args[idx]
                             } : args[idx]);
                         }
+                        return true;
                     });
                 }
                 end_of_chain_check_interval = fSETTIMEOUT(function(){
@@ -320,7 +317,6 @@
                 fCLEARTIMEOUT(end_of_chain_check_interval);
                 first_pass = bFALSE;
                 if (!isFunc(func)) func = fNOOP;
-                ////console.log(fun);
                 // On this current chain's waitFunc function, tack on call to trigger the queue for the *next* engine 
                 // in the chain, which will be executed when the current chain finishes loading
                 var e = engine(bTRUE,opts),	// 'bTRUE' tells the engine to be in queueing mode
@@ -333,16 +329,16 @@
                 };
                 delete e.trigger; // remove the 'trigger' property from e's public API, since only used internally
                 var fn = function(){
-                    /*if(already_loaded) wfunc();
-                    else */if(scripts_loading && !ready) waitFunc = wfunc;
+                    if(already_loaded) wfunc();
+                    if((scripts_loading && !ready) || already_loaded) waitFunc = wfunc;
                     else wfunc();
-                    ////console.log([func, scripts_loading && !ready && !already_loaded]);
+                    return true;
                 };
 
-                /*if(already_loaded)  queueAndExecute(fn);
-                else */if(queueExec && !scripts_loading) onlyQueue(fn);
+                if(already_loaded)  queueAndExecute(fn);
+                else if(queueExec && scripts_loading) onlyQueue(fn);
                 else queueAndExecute(fn);
-                triggerNextChain();
+                fSETTIMEOUT(function(){triggerNextChain()}, 0)
                 return e;
             }
         };
