@@ -38,7 +38,6 @@
     fNOOP = function(){},
     append_to = {},
     all_scripts = {},
-    already_loaded = false,
     PAGEROOT = /^[^?#]*\//.exec(oWINLOC.href)[0], // these ROOTs do not support file:/// usage, only http:// type usage
     DOCROOT = /^\w+\:\/\/\/?[^\/]+/.exec(PAGEROOT)[0], // optional third / in the protocol portion of this regex so that LABjs doesn't blow up when used in file:/// usage
     docScripts = fGETELEMENTSBYTAGNAME(sSCRIPT),
@@ -109,10 +108,10 @@
         first_pass = bTRUE,
         scripts = {},
         exec = [],
-        end_of_chain_check_interval = nNULL;
+        end_of_chain_check_interval = nNULL,
+        already_loaded = nNULL;
 
         _use_preload = _use_cache_preload || _use_xhr_preload || _use_script_order; // if all flags are turned off, preload is moot so disable it
-
         function isScriptLoaded(elem,scriptentry) {
             if ((elem[sREADYSTATE] && elem[sREADYSTATE]!==sCOMPLETE && elem[sREADYSTATE]!=="loaded") || scriptentry[sDONE]) {
                 return bFALSE;
@@ -120,9 +119,13 @@
             elem[sONLOAD] = elem[sONREADYSTATECHANGE] = nNULL; // prevent memory leak
             return bTRUE;
         }
-        function handleAllScriptsLoaded(){
+        function handleAllScriptsLoaded(scriptentry){
+            scriptentry[sDONE] = bTRUE;
+            for (var key in scripts) {
+                if (scripts[sHASOWNPROPERTY](key) && !(scripts[key][sDONE])) return;
+            }
+
             ready = bTRUE;
-            queueExec = bTRUE;
             waitFunc();
         }
         function handleScriptLoad(elem,scriptentry,skipReadyCheck) {
@@ -252,11 +255,11 @@
             if (scriptentry[sWHICH] == nNULL) scriptentry[sWHICH] = _which;
             scriptentry[sDONE] = bFALSE;
             scriptentry[sSRCURI] = src_uri;
-            scripts_loading = bTRUE;
+            if(!tag_exists) scripts_loading = bTRUE;
 
             if(tag_exists){
                 //Addition to make it work for subsequent calls in which all the scripts on the list have already been loaded.
-                handleAllScriptsLoaded();
+                handleAllScriptsLoaded(scriptentry);
                 already_loaded = bTRUE;
                 loadTriggerExecute(scriptentry);
             }
@@ -269,7 +272,7 @@
         }
         function queueAndExecute(execBody) { // helper for publicAPI functions below
             if (queueExec && !_use_script_order) onlyQueue(execBody);
-            if (!queueExec || _use_preload || already_loaded) execBody(); // if engine is either not queueing, or is queuing in preload mode, go ahead and execute
+            if (!queueExec || _use_preload) execBody(); // if engine is either not queueing, or is queuing in preload mode, go ahead and execute
         }
         function serializeArgs(args) {
             var sargs = [], idx;
@@ -329,16 +332,18 @@
                 };
                 delete e.trigger; // remove the 'trigger' property from e's public API, since only used internally
                 var fn = function(){
-                    if(already_loaded) wfunc();
-                    if((scripts_loading && !ready) || already_loaded) waitFunc = wfunc;
+                    if(already_loaded && (!scripts_loading || ready)) wfunc();
+                    else if((scripts_loading && !ready)) waitFunc = wfunc;
                     else wfunc();
                     return true;
                 };
 
-                if(already_loaded)  queueAndExecute(fn);
+                if(ready)  wfunc();
                 else if(queueExec && scripts_loading) onlyQueue(fn);
                 else queueAndExecute(fn);
-                fSETTIMEOUT(function(){triggerNextChain()}, 0)
+                fSETTIMEOUT(function(){
+                    triggerNextChain()
+                    }, 0)
                 return e;
             }
         };
@@ -415,5 +420,4 @@
             },bFALSE);
         }
     })("addEventListener","DOMContentLoaded");
-	
 })(window);
