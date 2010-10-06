@@ -371,8 +371,7 @@
         allOpts = {
             "AppendTo":sWHICH,
             "BasePath":"base"
-        }
-        ;
+        };
         for (k in boolOpts) allOpts[k] = boolOpts[k];
         newOpts.order = !(!global_defs.order);
         for (k in allOpts) {
