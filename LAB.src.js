@@ -294,7 +294,6 @@
                                 loadScript((typeof args[0] === sSTRING) ? {
                                     src:args[0]
                                 } : args[0]);
-                                return true;
                             });
                         }
                         else use_engine = use_engine.script(args[idx]);
@@ -333,12 +332,12 @@
                 delete e.trigger; // remove the 'trigger' property from e's public API, since only used internally
                 var fn = function(){
                     if(already_loaded && (!scripts_loading || ready)) wfunc();
-                    else if((scripts_loading && !ready)) waitFunc = wfunc;
+                    else if(scripts_loading && !ready) waitFunc = wfunc;
                     else wfunc();
                     return true;
                 };
 
-                if(ready)  wfunc();
+                if(ready && !scripts_loading)  wfunc();
                 else if(queueExec && scripts_loading) onlyQueue(fn);
                 else queueAndExecute(fn);
                 fSETTIMEOUT(function(){
