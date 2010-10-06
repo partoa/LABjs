@@ -64,10 +64,9 @@
     ;
     global_defs[sPRESERVE] = bFALSE; // force preserve execution order of all loaded scripts (regardless of preloading)
     global_defs[sPRELOAD] = bTRUE; // use various tricks for "preloading" scripts
-
+	
     append_to[sHEAD] = fGETELEMENTSBYTAGNAME(sHEAD);
     append_to[sBODY] = fGETELEMENTSBYTAGNAME(sBODY);
-	
 	
     function isFunc(func) {
         return fOBJTOSTRING.call(func) === sTYPEFUNC;
@@ -85,8 +84,7 @@
     function scriptTagExists(uri) { // checks if a script uri has ever been loaded into this page's DOM
         var script, idx=-1;
         while (script = docScripts[++idx]) {
-            var src = script.src == ""?(script.title == ""?"":script.title):script.src;
-            if (src != "" && typeof src === sSTRING && uri === canonicalScriptURI(src) && script.type !== sSCRIPTCACHE) return bTRUE;
+            if (typeof script.src === sSTRING && uri === canonicalScriptURI(script.src) && script.type !== sSCRIPTCACHE) return bTRUE;
         }
         return bFALSE;
     }
@@ -105,28 +103,21 @@
         waitFunc = fNOOP,
         scripts_loading = bFALSE,
         publicAPI,
+
         first_pass = bTRUE,
         scripts = {},
         exec = [],
-        end_of_chain_check_interval = nNULL,
-        already_loaded = nNULL;
-
+        end_of_chain_check_interval = nNULL
+        ;
+		
         _use_preload = _use_cache_preload || _use_xhr_preload || _use_script_order; // if all flags are turned off, preload is moot so disable it
+		
         function isScriptLoaded(elem,scriptentry) {
             if ((elem[sREADYSTATE] && elem[sREADYSTATE]!==sCOMPLETE && elem[sREADYSTATE]!=="loaded") || scriptentry[sDONE]) {
                 return bFALSE;
             }
             elem[sONLOAD] = elem[sONREADYSTATECHANGE] = nNULL; // prevent memory leak
             return bTRUE;
-        }
-        function handleAllScriptsLoaded(scriptentry){
-            scriptentry[sDONE] = bTRUE;
-            for (var key in scripts) {
-                if (scripts[sHASOWNPROPERTY](key) && !(scripts[key][sDONE])) return;
-            }
-
-            ready = bTRUE;
-            waitFunc();
         }
         function handleScriptLoad(elem,scriptentry,skipReadyCheck) {
             skipReadyCheck = !(!skipReadyCheck); // used to override ready check when script text was injected from XHR preload
@@ -185,7 +176,6 @@
                 append_to[_script_which].insertBefore(scriptElem,(_script_which===sHEAD?append_to[_script_which].firstChild:nNULL));
                 if (typeof scriptText === sSTRING) { // script text already avaiable from XHR preload, so just inject it
                     scriptElem.text = scriptText;
-                    scriptElem.title = src;
                     handleScriptLoad(scriptElem,scriptentry,bTRUE); // manually call 'load' callback function, skipReadyCheck=true
                 }
             },0);
@@ -238,32 +228,32 @@
             if (typeof type !== sSTRING) type = "text/javascript";
             if (typeof charset !== sSTRING) charset = nNULL;
             allowDup = !(!allowDup);
-            var tag_exists = scriptTagExists(src_uri);
-            already_loaded = bFALSE;
-
             if (!allowDup && 
-                ((all_scripts[src_uri] != nNULL) || (first_pass && scripts[src_uri]) || tag_exists)) {
+                (
+                    (all_scripts[src_uri] != nNULL) || (first_pass && scripts[src_uri]) || scriptTagExists(src_uri)
+                    )
+                ) {
                 if (scripts[src_uri] != nNULL && scripts[src_uri][sPRELOADDONE] && !scripts[src_uri][sDONE] && same_domain) {
                     // this script was preloaded via XHR, but is a duplicate, and dupes are not allowed
                     handleScriptLoad(nNULL,scripts[src_uri],bTRUE); // mark the entry as done and check if chain group is done
+                } /* suggested fix by Ran Grushkowsky
+                                   * from http://www.ATMCash.com
+                                   */
+                else {
+                    scripts_loading = bTRUE;
+                    ready = bTRUE;
+                    waitFunc();
                 }
-
-                if(!tag_exists)  return;
+                return;
             }
             if (scripts[src_uri] == nNULL) scripts[src_uri] = {};
             scriptentry = scripts[src_uri];
             if (scriptentry[sWHICH] == nNULL) scriptentry[sWHICH] = _which;
             scriptentry[sDONE] = bFALSE;
             scriptentry[sSRCURI] = src_uri;
-            if(!tag_exists) scripts_loading = bTRUE;
-
-            if(tag_exists){
-                //Addition to make it work for subsequent calls in which all the scripts on the list have already been loaded.
-                handleAllScriptsLoaded(scriptentry);
-                already_loaded = bTRUE;
-                loadTriggerExecute(scriptentry);
-            }
-            else if (!_use_script_order && _use_xhr_preload && same_domain) loadScriptXHR(scriptentry,src_uri,type,charset);
+            scripts_loading = bTRUE;
+			
+            if (!_use_script_order && _use_xhr_preload && same_domain) loadScriptXHR(scriptentry,src_uri,type,charset);
             else if (!_use_script_order && _use_cache_preload) loadScriptCache(scriptentry,src_uri,type,charset);
             else loadScriptElem(scriptentry,src_uri,type,charset);
         }
@@ -293,8 +283,7 @@
                             queueAndExecute(function(){
                                 loadScript((typeof args[0] === sSTRING) ? {
                                     src:args[0]
-                                } : args[0]);
-                                return true;
+                                    } : args[0]);
                             });
                         }
                         else use_engine = use_engine.script(args[idx]);
@@ -306,9 +295,8 @@
                         for (idx=-1; ++idx<args.length;) {
                             loadScript((typeof args[idx] === sSTRING) ? {
                                 src:args[idx]
-                            } : args[idx]);
+                                } : args[idx]);
                         }
-                        return true;
                     });
                 }
                 end_of_chain_check_interval = fSETTIMEOUT(function(){
@@ -332,18 +320,12 @@
                 };
                 delete e.trigger; // remove the 'trigger' property from e's public API, since only used internally
                 var fn = function(){
-                    if(already_loaded && (!scripts_loading || ready)) wfunc();
-                    else if((scripts_loading && !ready)) waitFunc = wfunc;
+                    if (scripts_loading && !ready) waitFunc = wfunc;
                     else wfunc();
-                    return true;
                 };
 
-                if(ready)  wfunc();
-                else if(queueExec && scripts_loading) onlyQueue(fn);
+                if (queueExec && !scripts_loading) onlyQueue(fn);
                 else queueAndExecute(fn);
-                fSETTIMEOUT(function(){
-                    triggerNextChain()
-                    }, 0);
                 return e;
             }
         };
@@ -371,7 +353,8 @@
         allOpts = {
             "AppendTo":sWHICH,
             "BasePath":"base"
-        };
+        }
+        ;
         for (k in boolOpts) allOpts[k] = boolOpts[k];
         newOpts.order = !(!global_defs.order);
         for (k in allOpts) {
@@ -409,7 +392,7 @@
 	   document.readyState property. The loaded script in question can then immediately trigger any queued code executions that were waiting for the DOM to be ready. 
 	   For instance, jQuery > 1.3.2 has been patched to take advantage of document.readyState, which is enabled by this hack. But 1.3.2 and before are **not** safe or 
 	   affected by this hack, and should therefore **not** be lazy-loaded by script loader tools such as LABjs.
-     */ 
+	*/ 
     (function(addEvent,domLoaded,handler){
         if (oDOC[sREADYSTATE] == nNULL && oDOC[addEvent]){
             oDOC[sREADYSTATE] = "loading";
@@ -419,4 +402,5 @@
             },bFALSE);
         }
     })("addEventListener","DOMContentLoaded");
+	
 })(window);
