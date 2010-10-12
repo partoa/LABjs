@@ -337,7 +337,7 @@
                     return true;
                 };
 
-                if(ready && !scripts_loading)  wfunc();
+                if(ready || !scripts_loading)  fSETTIMEOUT(wfunc(), 0);
                 else if(queueExec && scripts_loading) onlyQueue(fn);
                 else queueAndExecute(fn);
                 fSETTIMEOUT(function(){
